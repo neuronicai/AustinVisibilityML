@@ -1,0 +1,209 @@
+---
+title: "Data Science Group Project"
+output:
+  pdf_document: default
+  html_notebook: default
+---
+
+### Required Packages
+```{r}
+library(e1071)
+```
+
+
+## Data Processing
+
+For the 2015 data, the following five days were removed since they did not have recorded visibility data: Aug 9, Aug, 10, Aug 11, Sep 20, and Sep 21.
+The table shows the number of times each average visibility values appears in the dataset.
+
+```{r}
+austin_weather_2015 <- read.csv(file = 'austin_weather_2015.csv', header = TRUE)
+table(austin_weather_2015$VisibilityAvgMiles)
+```
+
+```{r}
+#par(mfrow=c(2, 1))
+#dev.new(width=1, height=1)
+plot(austin_weather_2015$VisibilityAvgMiles~austin_weather_2015$Date, ylim = c(0, 10))
+```
+
+### Reconfigure the data
+
+#### Generate the 2 classifications
+```{r}
+austin_weather_2015$Date <- NULL
+austin_weather_2015$Visibility <- ifelse(austin_weather_2015$VisibilityAvgMiles > 5, 1, 0)
+austin_weather_2015$Visibility <- as.factor(austin_weather_2015$Visibility)
+austin_weather_2015$VisibilityAvgMiles <- NULL
+table(austin_weather_2015$Visibility)
+```
+
+#### Split Into Training and Testing Data
+```{r}
+n <- nrow(austin_weather_2015)
+set.seed(1)
+train <- sample(1:n, 0.8*n)
+train_austin_weather <- austin_weather_2015[train,]
+test_austin_weather <- austin_weather_2015[-train,]
+```
+
+### Generating the SVM Models
+
+#### Linear SVM 
+```{r echo=TRUE}
+set.seed(1)
+svm.lin.2015 <- tune(svm,
+                Visibility~.,
+                data = train_austin_weather,
+                kernel = "linear",
+                ranges = list(cost = seq(0.1, 10, by = 0.1)),
+                scale = T)
+```
+
+```{r include=FALSE}
+print(svm.lin.2015)
+print(svm.lin.2015$best.parameters) # Optimal cost value
+print(svm.lin.2015$best.performance) # Optimal model's cross-validation error (testing error estimate)
+
+svm.lin.2015.pred <- predict(svm.lin.2015$best.model)
+mean(svm.lin.2015.pred != train_austin_weather$Visibility) # Optimal model's training error
+```
+
+The linear kernel's best parameters are `r svm.lin.2015$best.parameters`.
+It has a training error of `r round(mean(svm.lin.2015.pred != train_austin_weather$Visibility), 5)`, a testing error of `r round(mean(svm.lin.2015.pred != test_austin_weather$Visibility), 5)`, and a 10-fold cross validation error of `r round(svm.lin.2015$best.performance, 5)`.
+
+
+#### Polynomial SVM
+```{r echo=TRUE}
+set.seed(1)
+svm.poly.2015 <- tune(svm,
+                Visibility~.,
+                data = train_austin_weather,
+                kernel = "polynomial",
+                ranges = list(cost = seq(0.001, 0.1, by = 0.001),
+                              degree = seq(2, 20, by = 1)),
+                scale = T)
+```
+
+```{r include=FALSE}
+print(svm.poly.2015)
+print(svm.poly.2015$best.parameters) # Optimal cost value
+print(svm.poly.2015$best.performance) # Optimal model's cross-validation error (testing error estimate)
+
+svm.poly.2015.pred <- predict(svm.poly.2015$best.model)
+mean(svm.poly.2015.pred != train_austin_weather$Visibility) # Optimal model's training error
+```
+
+The polynomial kernel's best parameters are `r svm.poly.2015$best.parameters`.
+It has a training error of `r round(mean(svm.poly.2015.pred != train_austin_weather$Visibility), 5)`, a testing error of `r round(mean(svm.poly.2015.pred != test_austin_weather$Visibility), 5)`, and a 10-fold cross validation error of `r round(svm.poly.2015$best.performance, 5)`.
+
+
+#### Radial SVM
+```{r echo=TRUE}
+set.seed(1)
+svm.rad.2015 <- tune(svm,
+                Visibility~.,
+                data = train_austin_weather,
+                kernel = "radial",
+                ranges = list(cost = seq(0.1, 5, by = 0.1),
+                              gamma = seq(0.01, 0.5, by = 0.01)),
+                scale = T)
+```
+
+```{r include=FALSE}
+print(svm.rad.2015)
+print(svm.rad.2015$best.parameters) # Optimal cost value
+print(svm.rad.2015$best.performance) # Optimal model's cross-validation error (testing error estimate)
+
+### WITH THE 80/20 SPLIT
+svm.rad.2015.pred <- predict(svm.rad.2015$best.model)
+mean(svm.rad.2015.pred != train_austin_weather$Visibility) # Optimal model's training error
+```
+
+The radial kernel's best parameters are `r svm.rad.2015$best.parameters`.
+It has a training error of `r round(mean(svm.rad.2015.pred != train_austin_weather$Visibility), 5)`, a testing error of `r round(mean(svm.rad.2015.pred != test_austin_weather$Visibility), 5)`, and a 10-fold cross validation error of `r round(svm.rad.2015$best.performance, 5)`.
+
+
+### Plotting the SVM Results
+
+### Linear Plots
+```{r}
+set.seed(1)
+svmfit <- svm(Visibility~., data = austin_weather_2015,
+              kernel = "linear",
+              cost = 1.6)
+
+plot(svmfit, austin_weather_2015, TempAvgF~DewPointAvgF)
+plot(svmfit, austin_weather_2015, TempAvgF~HumidityAvgPercent)
+plot(svmfit, austin_weather_2015, TempAvgF~SeaLevelPressureAvgInches)
+plot(svmfit, austin_weather_2015, TempAvgF~WindAvgMPH)
+plot(svmfit, austin_weather_2015, TempAvgF~PrecipitationSumInches)
+plot(svmfit, austin_weather_2015, DewPointAvgF~HumidityAvgPercent)
+plot(svmfit, austin_weather_2015, DewPointAvgF~SeaLevelPressureAvgInches)
+plot(svmfit, austin_weather_2015, DewPointAvgF~PrecipitationSumInches)
+plot(svmfit, austin_weather_2015, SeaLevelPressureAvgInches~HumidityAvgPercent)
+plot(svmfit, austin_weather_2015, SeaLevelPressureAvgInches~WindAvgMPH)
+plot(svmfit, austin_weather_2015, SeaLevelPressureAvgInches~PrecipitationSumInches)
+plot(svmfit, austin_weather_2015, WindAvgMPH~PrecipitationSumInches)
+```
+
+```{r echo=FALSE}
+# Testing a different method:
+# x <- austin_weather_2015$TempAvgF
+# y <- austin_weather_2015$DewPointAvgF
+# w <- austin_weather_2015$HumidityAvgPercent
+# z <- austin_weather_2015$SeaLevelPressureAvgInches
+# model <- svm.rad.2015$best.model
+# xgrid = expand.grid(x = y, w = z) # generating grid points
+# ygrid = predict(model, newdata = xgrid) # ygrid consisting of predicted Response values
+# 
+# Radialsvm=svm(Visibility~., data=austin_weather_2015, kernel="radial", cost=1, gamma = 0.01, scale=T)
+
+# lets plot the non linear decision boundary
+# plot(xgrid,col=as.numeric(ygrid),pch=20,cex=0.3)
+# points(austin_weather_2015$Visibility~austin_weather_2015$DewPointAvgF,col=y+1,pch=19) 
+# we can see that the decision boundary is non linear
+```
+
+### Polynomial Plots
+```{r}
+svmfit <- svm(Visibility~., data = austin_weather_2015,
+              kernel = "polynomial",
+              cost = 0.006, degree = 10)
+
+plot(svmfit, austin_weather_2015, TempAvgF~DewPointAvgF)
+plot(svmfit, austin_weather_2015, TempAvgF~HumidityAvgPercent)
+plot(svmfit, austin_weather_2015, TempAvgF~SeaLevelPressureAvgInches)
+plot(svmfit, austin_weather_2015, TempAvgF~WindAvgMPH)
+plot(svmfit, austin_weather_2015, TempAvgF~PrecipitationSumInches)
+plot(svmfit, austin_weather_2015, DewPointAvgF~HumidityAvgPercent)
+plot(svmfit, austin_weather_2015, DewPointAvgF~SeaLevelPressureAvgInches)
+plot(svmfit, austin_weather_2015, DewPointAvgF~PrecipitationSumInches)
+plot(svmfit, austin_weather_2015, SeaLevelPressureAvgInches~HumidityAvgPercent)
+plot(svmfit, austin_weather_2015, SeaLevelPressureAvgInches~WindAvgMPH)
+plot(svmfit, austin_weather_2015, SeaLevelPressureAvgInches~PrecipitationSumInches)
+plot(svmfit, austin_weather_2015, WindAvgMPH~PrecipitationSumInches)
+```
+
+
+### Radial Plots
+```{r}
+svmfit <- svm(Visibility~., data = austin_weather_2015,
+              kernel = "radial",
+              cost = 1.6, gamma = 0.38)
+
+plot(svmfit, austin_weather_2015, TempAvgF~DewPointAvgF)
+plot(svmfit, austin_weather_2015, TempAvgF~HumidityAvgPercent)
+plot(svmfit, austin_weather_2015, TempAvgF~SeaLevelPressureAvgInches)
+plot(svmfit, austin_weather_2015, TempAvgF~WindAvgMPH)
+plot(svmfit, austin_weather_2015, TempAvgF~PrecipitationSumInches)
+plot(svmfit, austin_weather_2015, DewPointAvgF~HumidityAvgPercent)
+plot(svmfit, austin_weather_2015, DewPointAvgF~SeaLevelPressureAvgInches)
+plot(svmfit, austin_weather_2015, DewPointAvgF~PrecipitationSumInches)
+plot(svmfit, austin_weather_2015, SeaLevelPressureAvgInches~HumidityAvgPercent)
+plot(svmfit, austin_weather_2015, SeaLevelPressureAvgInches~WindAvgMPH)
+plot(svmfit, austin_weather_2015, SeaLevelPressureAvgInches~PrecipitationSumInches)
+plot(svmfit, austin_weather_2015, WindAvgMPH~PrecipitationSumInches)
+```
+
+
